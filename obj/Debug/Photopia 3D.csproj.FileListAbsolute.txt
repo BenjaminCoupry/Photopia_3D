@@ -1,0 +1,7 @@
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\bin\Debug\Photopia 3D.exe.config
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\bin\Debug\Photopia 3D.exe
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\bin\Debug\Photopia 3D.pdb
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\obj\Debug\Photopia 3D.csprojAssemblyReference.cache
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\obj\Debug\Photopia 3D.csproj.CoreCompileInputs.cache
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\obj\Debug\Photopia 3D.exe
+E:\Mes Fichiers\Programmes\C#\Photopia_3D\Photopia_3D\obj\Debug\Photopia 3D.pdb

@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 
 namespace Photopia_3D
@@ -12,27 +9,87 @@ namespace Photopia_3D
     delegate EnergieLumineuse ConeEmission(double teta);
 
     delegate Vector FiltrationVolumetrique(Vector position);
-    delegate Vector AttenuationAngulaireParametree(double teta, double FiltrationLocale);
+    delegate Vector RepartitionAngulaireParametree(double teta, double FiltrationLocale);
 
     class Mapper
     {
         //public static Mapping fromBitmap(Bitmap bp)
+        public static Mapping Uniforme(Vector valeur)
+        {
+            return (x, y) => valeur;
+        }
+        public static Mapping BPAngulaire(Bitmap valeurs)
+        {
+            return (x, y) => {
+                double kteta = x / Math.PI;
+                double kphy = y / Math.PI;
+                Color c = valeurs.GetPixel((int)(kphy * (double)(valeurs.Width-1)), (int)(kteta * (double)(valeurs.Height-1)));
+                return new Vector(c.R / 255.0, c.G / 255.0, c.B / 255.0);
+            };
+        }
+        public static AttenuationAngulaire AttenuationGaussienne(double lambda1, double lambda2, double lambda3)
+        {
+            return (x) => new Vector(Math.Exp(-lambda1 * x), Math.Exp(-lambda2 * x), Math.Exp(-lambda3 * x));
+        }
+        public static AttenuationAngulaire Cos()
+        {
+            return (x) => new Vector(1, 1, 1) * Math.Max(0, Math.Cos(x));
+        }
+        public static AttenuationAngulaire Sin()
+        {
+            return (x) => new Vector(1,1,1)* Math.Max(0, Math.Sin(x));
+        }
+        public static ConeEmission ConeCosinus(Color Base)
+        {
+            EnergieLumineuse E0 = new EnergieLumineuse(Base);
+            return (x) => E0*Math.Max(0,Math.Cos(x));
+        }
+        public static ConeEmission ConeConstant(Color Base)
+        {
+            EnergieLumineuse E0 = new EnergieLumineuse(Base);
+            return (x) => E0 ;
+        }
+        public static FiltrationVolumetrique FiltrationUniforme(Vector Filtre)
+        {
+            return (x) => Filtre;
+        }
+        public static RepartitionAngulaireParametree Cacahuete(double Coeff, double A0)
+        {
+            
+            return (x,y) => Math.Pow(Math.Abs(Math.Cos(x)),Coeff/Math.Abs(y))*A0*new Vector(1,1,1);
+        }
+        public static RepartitionAngulaireParametree Nulle()
+        {
+
+            return (x, y) => new Vector(0,0,0);
+        }
+
     }
 
     class Materiau
     {
         public Mapping Coloration;
         public Mapping Normales;
-        public Bitmap bpAbsor;
-        public Bitmap bpNorm;
         public AttenuationAngulaire AttenuationReflexion;
         public AttenuationAngulaire ColorationAngulaire;
         public Vector FiltrationVolumetrique;
         public double n_refraction;
         public bool Opaque;
+
+        public Materiau(Mapping coloration, Mapping normales, AttenuationAngulaire attenuationReflexion, AttenuationAngulaire colorationAngulaire, Vector filtrationVolumetrique, double n_refraction, bool opaque)
+        {
+            Coloration = coloration;
+            Normales = normales;
+            AttenuationReflexion = attenuationReflexion;
+            ColorationAngulaire = colorationAngulaire;
+            FiltrationVolumetrique = filtrationVolumetrique;
+            this.n_refraction = n_refraction;
+            Opaque = opaque;
+        }
+
         public Vector NormaleReelle(Tuple<double, double> coord2D, Base baseLocale, Vector NormaleGeometrique)
         {
-            return (NormaleGeometrique + (baseLocale.Localiser(Normales(coord2D.Item1, coord2D.Item2)) - baseLocale.position)).Normer();
+            return (NormaleGeometrique + (baseLocale.Delocaliser(Normales(coord2D.Item1, coord2D.Item2)) - baseLocale.position)).Normer();
         }
         public Vector CouleurReelle(Tuple<double, double> coord2D, InfoContact Contact, Vector Sortant)
         {
@@ -40,13 +97,35 @@ namespace Photopia_3D
             double AngleIncidence = (-Contact.VecteurIncident).Angle(Contact.VecteurNormal);
             Vector CouleurLocale = Coloration(coord2D.Item1, coord2D.Item2);
             Vector FacteurRasant = ColorationAngulaire(AngleIncidence);
-            return AttenuationReflexion(AngleSpeculaire) % (new Vector(1, 1, 1) % FacteurRasant + CouleurLocale % (1.0 - FacteurRasant));
+            if(FacteurRasant.isNan())
+            {
+                ;
+            }
+            if (CouleurLocale.isNan())
+            {
+                ;
+            }
+            Vector retour = AttenuationReflexion(AngleSpeculaire) % (new Vector(1, 1, 1) % FacteurRasant + CouleurLocale % (1.0 - FacteurRasant));
+            if (retour.isNan())
+            {
+                ;
+            }
+            return retour;
         }
     }
     class Program
     {
         static void Main(string[] args)
         {
+            Materiau Test = new Materiau(Mapper.Uniforme(new Vector(1, 0.1, 0.1)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(1, 1, 0.5), Mapper.AttenuationGaussienne(2, 2,2), new Vector(1, 1, 1), 1, true);
+            Materiau Test2 = new Materiau(Mapper.Uniforme(new Vector(1, 0.1, 0.1)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(1, 1, 0.5), Mapper.AttenuationGaussienne(2, 2, 2), new Vector(0.5, 0.5, 0.5), 1, false);
+            SourceLumineuse Source = new SourceLumineuse(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 4, 3)), Mapper.ConeConstant(Color.White));
+            SourceLumineuse Source2 = new SourceLumineuse(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 4, -3)), Mapper.ConeConstant(Color.Red));
+            Sphere S = new Sphere(1.8, Test, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 0, 0)));
+            Sphere S1 = new Sphere(0.5, Test2, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(3, 0, 0)));
+            Univers U = new Univers(new List<ObjetPhysique>() { S,S1 }, new List<SourceLumineuse>() {  Source2,Source }, 3, 5, 0.01, 1, Mapper.FiltrationUniforme(new Vector(0.5, 0.7, 0.2)), Mapper.Cacahuete(0.5,0.2),0.2);
+            Camera C = new Camera(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 3, 0)), 2, 100, 100, 0.05);
+            C.Rendre(U).Save("D:/lab/Rendu3D/1.bmp");
         }
     }
     class Vector
@@ -154,7 +233,27 @@ namespace Photopia_3D
         }
         public double Angle(Vector b)
         {
-            return Math.Acos((this * b) / (this.Norme() * b.Norme()));
+            double n = this.Norme() * b.Norme();
+            double retour;
+            if (n != 0)
+            {
+                double Cos = Math.Min(1.0,Math.Max(-1.0,(this * b) / (n)));
+                retour =  Math.Acos(Cos);
+                if (double.IsNaN(retour))
+                {
+                    ;
+                }
+            }
+            else
+            {
+                retour =  0;
+            }
+            
+            return retour;
+        }
+        public bool isNan()
+        {
+            return double.IsNaN(x) || double.IsNaN(y) || double.IsNaN(z);
         }
     }
     class Localisable
@@ -172,14 +271,21 @@ namespace Photopia_3D
     abstract class ObjetPhysique : Localisable
     {
         Materiau materiau;
-        public ObjetPhysique( Base orientation) : base( orientation)
+        public ObjetPhysique(Materiau Mat, Base orientation) : base( orientation)
         {
+            materiau = Mat;
         }
-        
+        public abstract double Distance(Vector Position);
         public abstract Tuple<double, double> getCoordonees2D(Vector position);
-        public abstract bool Contact(Vector Position);
+        public abstract bool Contact(Vector Position, double d0);
         public abstract Base GetBase(Tuple<double, double> coord2D);
         public abstract Vector Normale(Tuple<double, double> coord2D);
+        public Vector GetCoordLocale(Vector position)
+        {
+            Base locale = Orientation;
+            Vector coordLocales = locale.GetCoordoneesDansBase(position);
+            return coordLocales;
+        }
         public Vector NormaleReelle(Vector position)
         {
             Tuple<double, double> coord2D = getCoordonees2D(position);
@@ -187,13 +293,18 @@ namespace Photopia_3D
         }
         public Vector CouleurReelle( InfoContact Contact, Vector Sortant)
         {
-            return getMateriau().CouleurReelle(getCoordonees2D(Contact.Position), Contact, Sortant);
+            Vector retour = getMateriau().CouleurReelle(getCoordonees2D(Contact.Position), Contact, Sortant);
+            if(retour.isNan())
+            {
+                ;
+            }
+            return retour;
         }
         public Materiau getMateriau()
         {
             return materiau;
         }
-
+        public abstract Vector Repousser(Vector position, double dist);
 
     }
     class Base
@@ -225,9 +336,13 @@ namespace Photopia_3D
             this.position = sphere.GetCartesien();
         }
 
-        public Vector Localiser(Vector coordoneesBase)
+        public Vector Delocaliser(Vector coordoneesBase)
         {
             return position + u1 * coordoneesBase.x + u2 * coordoneesBase.y + u3 * coordoneesBase.z;
+        }
+        public Base Delocaliser(Base baseDel)
+        {
+            return new Base(Delocaliser(baseDel.u1) - position, Delocaliser(baseDel.u2) - position, Delocaliser(baseDel.u3) - position, Delocaliser(baseDel.position));
         }
         public Vector GetCoordoneesDansBase(Vector Cartesien)
         {
@@ -269,6 +384,10 @@ namespace Photopia_3D
         {
             return new Vector(-Math.Sin(phy), Math.Cos(phy), 0);
         }
+        public Base GetBase()
+        {
+            return new Base(GetUr(), GetUteta(), GetUphy(), GetCartesien());
+        }
     }
 
     class Tir
@@ -299,8 +418,8 @@ namespace Photopia_3D
             ObjetPhysique contact;
             do
             {
-                Avancer();
-                contact = Contact(univ, Exclusion);
+                Avancer(true,univ);
+                contact = Contact(univ, Exclusion,univ.EpsilonContact);
             } while (contact is null && Longueur < distMax);
             if(contact is null)
             {
@@ -309,13 +428,13 @@ namespace Photopia_3D
             
             return new InfoContact(Position(),tir.direction.Normer(),contact.NormaleReelle(Position()),contact);
         }
-        public ObjetPhysique Contact(Univers univ, List<ObjetPhysique> Exclusion)
+        public ObjetPhysique Contact(Univers univ, List<ObjetPhysique> Exclusion, double d0)
         {
             foreach(ObjetPhysique obj in univ.objets)
             {
                 if(!Exclusion.Contains(obj))
                 {
-                    if(obj.Contact(this.Position()))
+                    if(obj.Contact(this.Position(),d0))
                     {
                         return obj;
                     }
@@ -330,8 +449,8 @@ namespace Photopia_3D
             ObjetPhysique contact;
             do
             {
-                Avancer();
-                contact = Contact(univ, new List<ObjetPhysique>());
+                Avancer(false,univ);
+                contact = Contact(univ, new List<ObjetPhysique>(),univ.EpsilonContact);
                 if(contact is null)
                 {
                     retour += univ.atmosphere(Position()) * Pas;
@@ -352,12 +471,12 @@ namespace Photopia_3D
         }
         public static Vector CalculerOpacite (Univers univ, Vector A, Vector B)
         {
-            Rayon r = new Rayon(new Tir((B - A).Normer(), A),0, univ.PasRayon, univ.distRayonMax);
-            return r.Opacite(univ, (B - A).Norme()-univ.PasRayon);
+            Rayon r = new Rayon(new Tir((B - A).Normer(), A),univ.PasVolumetrique, univ.PasVolumetrique, univ.distRayonMax);
+            return r.Opacite(univ, (B - A).Norme()-2*univ.PasVolumetrique);
         }
         public static EnergieLumineuse CalculerAtmosphere(Univers univ, Tir tir)
         {
-            Rayon r = new Rayon(tir, 0, univ.PasRayon, univ.distRayonMax);
+            Rayon r = new Rayon(tir, 0, univ.EpsilonContact, univ.distRayonMax);
             EnergieLumineuse E = new EnergieLumineuse();
             Vector A = tir.depart;
             while(r.Longueur<r.distMax)
@@ -367,12 +486,16 @@ namespace Photopia_3D
                 {
                     Vector B = sour.Position();
                     EnergieLumineuse recueBrute = sour.GetEnergieLumineuse(X);
+
                     Vector Opacite = Rayon.CalculerOpacite(univ, B, X) + Rayon.CalculerOpacite(univ, X, A);
                     EnergieLumineuse Opacifiee = recueBrute.Opacifier(Opacite, univ.facteurExtinction);
-                    Vector FacteurReorientation = univ.reorientationAtmosphere((X - B).Angle(A - X), univ.atmosphere(X).Norme());
+                    double angle = (X - B).Angle(A - X);
+                    double densite = univ.atmosphere(X).Norme();
+                    Vector FacteurReorientation = univ.reorientationAtmosphere(angle, densite);
                     E += (Opacifiee*FacteurReorientation)*r.Pas;
+
                 }
-                r.Avancer();
+                r.Avancer(false,univ);
             }
             return E;
         }
@@ -380,10 +503,26 @@ namespace Photopia_3D
         {
             return tir.depart + tir.direction * Longueur;
         }
-        public void Avancer()
+        public void Avancer(bool vitesseMax,Univers univ)
         {
-            //Effets Atmospheriques
-            Longueur += Pas;
+            //VitesseMax : avancer de la distance qui separe de l'objet le plus proche
+            if (!vitesseMax)
+            {
+                Longueur += Pas;
+            }
+            else
+            {
+                double distmin = double.PositiveInfinity;
+                foreach(ObjetPhysique obj in univ.objets)
+                {
+                    double dist = obj.Distance(Position());
+                    if(dist<distmin)
+                    {
+                        distmin = dist;
+                    }
+                }
+                Longueur += distmin;
+            }
         }
     }
     class Camera : Localisable
@@ -404,9 +543,9 @@ namespace Photopia_3D
 
         public Tir GetTirPixel(int x, int y)
         {
-            Vector PositionSurEcran = new Vector(x * Scale - X_ecran * Scale / 2.0, y * Scale - Y_ecran * Scale / 2.0, 0);
-            Vector PositionReelle = Orientation.Localiser(PositionSurEcran);
-            Vector PositionPointFuite = Orientation.Localiser(-Recul * Vector.Z());
+            Vector PositionSurEcran = new Vector(x * Scale - X_ecran * Scale / 2.0,0, y * Scale - Y_ecran * Scale / 2.0);
+            Vector PositionReelle = Orientation.Delocaliser(PositionSurEcran);
+            Vector PositionPointFuite = Orientation.Delocaliser(Recul * Vector.Y());
             return new Tir((PositionReelle - PositionPointFuite).Normer(), PositionReelle);
         }
 
@@ -415,10 +554,11 @@ namespace Photopia_3D
             Bitmap ret = new Bitmap(X_ecran, Y_ecran);
             for(int x=0;x<X_ecran;x++)
             {
+                Console.WriteLine(x);
                 for (int y = 0; y < Y_ecran; y++)
                 {
                     Tir tir = GetTirPixel(x, y);
-                    Rayon ray = new Rayon(tir, 0, univ.PasRayon,univ.distRayonMax);
+                    Rayon ray = new Rayon(tir, 0, univ.EpsilonContact,univ.distRayonMax);
                     EnergieLumineuse col = univ.GetLumiere(ray,univ.bounceLimit,new List<ObjetPhysique>());
                     ret.SetPixel(x, y, col.VersRGB());
                 }
@@ -442,9 +582,9 @@ namespace Photopia_3D
     class EnergieLumineuse
     {
         static double coeffCaptage = 1;
-        double r;
-        double g;
-        double b;
+        public double r;
+        public double g;
+        public double b;
         public EnergieLumineuse()
         {
             r = 0;
@@ -491,26 +631,47 @@ namespace Photopia_3D
         {
             return new EnergieLumineuse(r * Math.Exp(-facteurExtinction * Opacite.x), g * Math.Exp(-facteurExtinction * Opacite.y), b * Math.Exp(-facteurExtinction * Opacite.z));
         }
+        public bool isNan()
+        {
+            return double.IsNaN(r) || double.IsNaN(g) || double.IsNaN(b);
+        }
 
     }
     class Univers
     {
         public List<ObjetPhysique> objets;
         public List<SourceLumineuse> sources;
-        public double deltaMetrique;
         public int bounceLimit;
-        public double epsilonContact;
         public double distRayonMax;
-        public double PasRayon;
+        public double EpsilonContact;
+        public double PasVolumetrique;
         public double facteurExtinction;
         public FiltrationVolumetrique atmosphere;
-        public AttenuationAngulaireParametree reorientationAtmosphere;
+        public RepartitionAngulaireParametree reorientationAtmosphere;
+
+        public Univers(List<ObjetPhysique> objets, List<SourceLumineuse> sources, int bounceLimit, double distRayonMax, double epsiloncontact, double facteurExtinction, FiltrationVolumetrique atmosphere, RepartitionAngulaireParametree reorientationAtmosphere, double pasVolumetrique)
+        {
+            this.objets = objets;
+            this.sources = sources;
+            this.bounceLimit = bounceLimit;
+            this.distRayonMax = distRayonMax;
+            EpsilonContact = epsiloncontact;
+            this.facteurExtinction = facteurExtinction;
+            this.atmosphere = atmosphere;
+            this.reorientationAtmosphere = reorientationAtmosphere;
+            PasVolumetrique = pasVolumetrique;
+        }
+
         public EnergieLumineuse GetLumiere(Rayon R, int bounceLeft, List<ObjetPhysique> ExclusionContact)
         {
             EnergieLumineuse E = Rayon.CalculerAtmosphere(this, R.tir);
+            if(E.isNan())
+            {
+                ;
+            }
             EnergieLumineuse Ei = new EnergieLumineuse();
             InfoContact contact = R.Tirer(this, ExclusionContact);
-            if(!(contact is null))
+            if(!(contact.Objet is null))
             {
                 Vector Opacite = Rayon.CalculerOpacite(this, R.tir.depart, R.Position());
                 Materiau mat = contact.Objet.getMateriau();
@@ -521,8 +682,11 @@ namespace Photopia_3D
                     Rayon Rebond = new Rayon(rebond, 0, R.Pas, R.distMax);
                     Rayon Refrac = new Rayon(refrac, 0, R.Pas, R.distMax);
                     EnergieLumineuse LumRebond = GetLumiere(Rebond, bounceLeft - 1, new List<ObjetPhysique>() { contact.Objet });
-                    EnergieLumineuse LumRefrac = GetLumiere(Refrac, bounceLeft - 1, new List<ObjetPhysique>() { contact.Objet });
-                    Ei += LumRefrac;
+                    if (!mat.Opaque)
+                    {
+                        EnergieLumineuse LumRefrac = GetLumiere(Refrac, bounceLeft - 1, new List<ObjetPhysique>() { contact.Objet });
+                        Ei += LumRefrac;
+                    }
                     Vector Couleur = contact.Objet.CouleurReelle(contact, rebond.direction);
                     Ei += LumRebond * Couleur;
 
@@ -558,7 +722,7 @@ namespace Photopia_3D
         public Tir Rebond()
         {
             double u0 = VecteurNormal * (-VecteurIncident);
-            Tir retour = new Tir(VecteurIncident+2*u0*VecteurNormal, Position);
+            Tir retour = new Tir(VecteurIncident+2*u0*VecteurNormal, Objet.Repousser(Position,0.01));
             return retour;
         }
         public Tir Refraction()
@@ -594,6 +758,52 @@ namespace Photopia_3D
         }
     }
 
+    class Sphere : ObjetPhysique
+    {
+        double rayon;
+        public Sphere(double Rayon, Materiau Mat, Base orientation) : base(Mat, orientation)
+        {
+            rayon = Rayon;
+        }
 
-    
+        public override bool Contact(Vector Position, double d0)
+        {
+            return (Position-Orientation.position).Norme()<rayon+d0;
+        }
+
+        public override double Distance(Vector Position)
+        {
+            return Math.Max(0, (Orientation.position - Position).Norme() - rayon);
+        }
+
+        public override Base GetBase(Tuple<double, double> coord2D)
+        {
+            //(0,0,0) est le centre de la sphere
+            RepereSpherique rep = new RepereSpherique(rayon,coord2D.Item1,coord2D.Item2);
+            Base B = rep.GetBase();
+            return B;
+        }
+
+        public override Tuple<double, double> getCoordonees2D(Vector position)
+        {
+            RepereSpherique rep = new RepereSpherique(GetCoordLocale(position));
+            return new Tuple<double, double>(rep.teta, rep.phy);
+        }
+
+        public override Vector Normale(Tuple<double, double> coord2D)
+        {
+            RepereSpherique rep = new RepereSpherique(rayon, coord2D.Item1, coord2D.Item2);
+            return Orientation.Delocaliser(rep.GetUr())-Orientation.position;
+        }
+
+        public override Vector Repousser(Vector position, double dist)
+        {
+            RepereSpherique rep = new RepereSpherique(GetCoordLocale(position));
+            rep.r +=dist;
+            return Orientation.Delocaliser(rep.GetCartesien());
+        }
+    }
+
+
+
 }
