@@ -4,6 +4,25 @@ using System.Drawing;
 
 namespace Photopia_3D
 {
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Materiau Test = new Materiau(Mapper.Uniforme(new Vector(0.1, 0.03, 0.06)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(0.1, 0.1, 0.1), Mapper.AttenuationGaussienne(2, 2, 2), new Vector(1, 1, 1), 1, true);
+            Materiau Test2 = new Materiau(Mapper.Uniforme(new Vector(0.01, 0, 0)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(1, 1, 0.5), ((x) => new Vector(1, 1, 1) * (x / 10)), new Vector(0.4, 0.4, 0.2), 1.3, false);
+            Materiau Test3 = new Materiau(Mapper.Uniforme(new Vector(0, 0.2, 0)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(1, 1, 0.5), ((x) => new Vector(1, 1, 1) * (x / 10)), new Vector(0.4, 0.4, 0.2), 1, false);
+            SourceLumineuse Source = new SourceLumineuse(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 7, 3)), Mapper.ConeConstant(Color.White));
+            SourceLumineuse Source2 = new SourceLumineuse(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 7, -3)), Mapper.ConeConstant(Color.White));
+            Sphere S = new Sphere(5, Test, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 0, 0)));
+            Sphere S1 = new Sphere(1, Test2, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(1.5, 6, 0)));
+            Sphere S2 = new Sphere(1, Test3, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(-1.5, 6, 0)));
+            Univers U = new Univers(new List<ObjetPhysique>() { S, S1,S2 }, new List<SourceLumineuse>() { Source2, Source }, 2, 5, 0.01, 1, Mapper.FiltrationUniforme(new Vector(0.1, 0.1, 0.1)), Mapper.Cacahuete(0.5, 0.01), 0.2);
+            Camera C = new Camera(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 7, 0)), 0.5, 100, 100, 0.05);
+            C.Rendre(U).Save("D:/lab/Rendu3D/1.bmp");
+        }
+    }
+
     delegate Vector Mapping(double x, double y);
     delegate Vector AttenuationAngulaire(double teta);
     delegate EnergieLumineuse ConeEmission(double teta);
@@ -113,21 +132,7 @@ namespace Photopia_3D
             return retour;
         }
     }
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            Materiau Test = new Materiau(Mapper.Uniforme(new Vector(1, 0.1, 0.1)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(1, 1, 0.5), Mapper.AttenuationGaussienne(2, 2,2), new Vector(1, 1, 1), 1, true);
-            Materiau Test2 = new Materiau(Mapper.Uniforme(new Vector(1, 0.1, 0.1)), Mapper.Uniforme(new Vector(0, 0, 0)), Mapper.AttenuationGaussienne(1, 1, 0.5), Mapper.AttenuationGaussienne(2, 2, 2), new Vector(0.5, 0.5, 0.5), 1, false);
-            SourceLumineuse Source = new SourceLumineuse(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 4, 3)), Mapper.ConeConstant(Color.White));
-            SourceLumineuse Source2 = new SourceLumineuse(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 4, -3)), Mapper.ConeConstant(Color.Red));
-            Sphere S = new Sphere(1.8, Test, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 0, 0)));
-            Sphere S1 = new Sphere(0.5, Test2, new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(3, 0, 0)));
-            Univers U = new Univers(new List<ObjetPhysique>() { S,S1 }, new List<SourceLumineuse>() {  Source2,Source }, 3, 5, 0.01, 1, Mapper.FiltrationUniforme(new Vector(0.5, 0.7, 0.2)), Mapper.Cacahuete(0.5,0.2),0.2);
-            Camera C = new Camera(new Base(Vector.X(), Vector.Y(), Vector.Z(), new Vector(0, 3, 0)), 2, 100, 100, 0.05);
-            C.Rendre(U).Save("D:/lab/Rendu3D/1.bmp");
-        }
-    }
+    
     class Vector
     {
         public double x;
@@ -418,7 +423,7 @@ namespace Photopia_3D
             ObjetPhysique contact;
             do
             {
-                Avancer(true,univ);
+                Avancer(true,univ,Exclusion);
                 contact = Contact(univ, Exclusion,univ.EpsilonContact);
             } while (contact is null && Longueur < distMax);
             if(contact is null)
@@ -449,7 +454,7 @@ namespace Photopia_3D
             ObjetPhysique contact;
             do
             {
-                Avancer(false,univ);
+                Avancer(false,univ, new List<ObjetPhysique>());
                 contact = Contact(univ, new List<ObjetPhysique>(),univ.EpsilonContact);
                 if(contact is null)
                 {
@@ -486,8 +491,13 @@ namespace Photopia_3D
                 {
                     Vector B = sour.Position();
                     EnergieLumineuse recueBrute = sour.GetEnergieLumineuse(X);
-
-                    Vector Opacite = Rayon.CalculerOpacite(univ, B, X) + Rayon.CalculerOpacite(univ, X, A);
+                    Vector Opacite1 = Rayon.CalculerOpacite(univ, B, X);
+                    Vector Opacite2 = Rayon.CalculerOpacite(univ, X, A);
+                    Vector Opacite =  Opacite1+Opacite2 ;
+                    if(double.IsInfinity(Opacite2.x) && double.IsInfinity(Opacite2.y)&& double.IsInfinity(Opacite2.z))
+                    {
+                        return E;
+                    }
                     EnergieLumineuse Opacifiee = recueBrute.Opacifier(Opacite, univ.facteurExtinction);
                     double angle = (X - B).Angle(A - X);
                     double densite = univ.atmosphere(X).Norme();
@@ -495,7 +505,7 @@ namespace Photopia_3D
                     E += (Opacifiee*FacteurReorientation)*r.Pas;
 
                 }
-                r.Avancer(false,univ);
+                r.Avancer(false,univ,new List<ObjetPhysique>());
             }
             return E;
         }
@@ -503,7 +513,7 @@ namespace Photopia_3D
         {
             return tir.depart + tir.direction * Longueur;
         }
-        public void Avancer(bool vitesseMax,Univers univ)
+        public void Avancer(bool vitesseMax,Univers univ, List<ObjetPhysique> Exclusion)
         {
             //VitesseMax : avancer de la distance qui separe de l'objet le plus proche
             if (!vitesseMax)
@@ -512,13 +522,24 @@ namespace Photopia_3D
             }
             else
             {
-                double distmin = double.PositiveInfinity;
+                double distmin;
+                if (univ.objets.Count>Exclusion.Count)
+                {
+                    distmin = double.PositiveInfinity;
+                }
+                else
+                {
+                    distmin = univ.distRayonMax;
+                }
                 foreach(ObjetPhysique obj in univ.objets)
                 {
-                    double dist = obj.Distance(Position());
-                    if(dist<distmin)
+                    if (!Exclusion.Contains(obj))
                     {
-                        distmin = dist;
+                        double dist = obj.Distance(Position());
+                        if (dist < distmin)
+                        {
+                            distmin = dist;
+                        }
                     }
                 }
                 Longueur += distmin;
@@ -552,15 +573,19 @@ namespace Photopia_3D
         public Bitmap Rendre(Univers univ)
         {
             Bitmap ret = new Bitmap(X_ecran, Y_ecran);
+            int n = 0;
             for(int x=0;x<X_ecran;x++)
             {
-                Console.WriteLine(x);
+                
                 for (int y = 0; y < Y_ecran; y++)
                 {
+                    n++;
                     Tir tir = GetTirPixel(x, y);
                     Rayon ray = new Rayon(tir, 0, univ.EpsilonContact,univ.distRayonMax);
                     EnergieLumineuse col = univ.GetLumiere(ray,univ.bounceLimit,new List<ObjetPhysique>());
                     ret.SetPixel(x, y, col.VersRGB());
+                    if(n%100==0)
+                    Console.WriteLine((double)n/(X_ecran*Y_ecran));
                 }
             }
             return ret;
@@ -685,10 +710,10 @@ namespace Photopia_3D
                     if (!mat.Opaque)
                     {
                         EnergieLumineuse LumRefrac = GetLumiere(Refrac, bounceLeft - 1, new List<ObjetPhysique>() { contact.Objet });
-                        Ei += LumRefrac;
+                        Ei += LumRefrac*contact.coeffRefrac(refrac.direction);
                     }
                     Vector Couleur = contact.Objet.CouleurReelle(contact, rebond.direction);
-                    Ei += LumRebond * Couleur;
+                    Ei += LumRebond * Couleur*contact.coeffRebond(refrac.direction);
 
                 }
 
@@ -748,6 +773,20 @@ namespace Photopia_3D
                 }
                 return new Tir(Retour, Position);
             }
+        }
+        public double coeffRebond(Vector VectDiffraction)
+        {
+            double ct1 = Math.Cos((-VecteurIncident).Angle(VecteurNormal));
+            double ct2 = Math.Cos((-VectDiffraction).Angle(VecteurNormal));
+            double n = Objet.getMateriau().n_refraction;
+            return (ct1 - n * ct2) / (ct1 + n * ct2);
+        }
+        public double coeffRefrac(Vector VectDiffraction)
+        {
+            double ct2 = Math.Cos((-VecteurIncident).Angle(VecteurNormal));
+            double ct1 = Math.Cos((-VectDiffraction).Angle(VecteurNormal));
+            double n = Objet.getMateriau().n_refraction;
+            return 2*n*ct1 / (n*ct1 +  ct2);
         }
         public InfoContact(Vector position, Vector vecteurIncident, Vector vecteurNormal, ObjetPhysique objet)
         {

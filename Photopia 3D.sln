@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1169
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Photopia 3D", "Photopia 3D.csproj", "{DD4E2118-0C78-440F-924D-3C71D582BB8B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DD4E2118-0C78-440F-924D-3C71D582BB8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD4E2118-0C78-440F-924D-3C71D582BB8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD4E2118-0C78-440F-924D-3C71D582BB8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD4E2118-0C78-440F-924D-3C71D582BB8B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D659D344-E370-4C4B-A4F7-793DA75E869A}
+	EndGlobalSection
+EndGlobal
